@@ -1,9 +1,11 @@
 #include <thread>
+#include <unistd.h>
 #include "Tool.hpp"
 #include "Level.hpp"
 #include "Message.hpp"
 #include "Format.hpp"
 #include "Sink.hpp"
+#include "UserDefSink.hpp"
 
 void testTool()
 {
@@ -72,9 +74,31 @@ void testSink()
     }
 }
 
+void testUserDefSink()
+{
+    tjq::LogMessage msg(tjq::LogLevel::value::INFO, 33, "main.c", "root", "格式化功能测试...");
+    tjq::Formatter fmt;
+    std::string str = fmt.format(msg);
+
+    tjq::LogSink::ptr time_lsp = tjq::SinkFactory::create<RollByTimeSink>("./logfile/roll-", TimeGap::GAP_MINUTE);
+    // time_t old = tjq::tool::Date::now();
+    // while (tjq::tool::Date::now() < old + 5)
+    // {
+    //     time_lsp->log(str.c_str(), str.size());
+    //     usleep(1000);
+    // }
+    size_t time = 120;
+    while (time--)
+    {
+        time_lsp->log(str.c_str(), str.size());
+        sleep(1);
+    }
+}
+
 int main()
 {
-    testSink();
+    testUserDefSink();
+    // testSink();
     // testThread();
     // testFormat();
 

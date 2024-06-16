@@ -54,14 +54,6 @@ public:
         size_t new_cur = getCurGap();
         if (new_cur != _cur_gap)
         {
-            // -------------debug---------------
-            std::cerr << "-----------------------" << std::endl;
-            std::cerr << "旧的当前时间段 _cur_gap: " << _cur_gap << std::endl;
-            std::cerr << "新的当前时间段 new_cur: " << new_cur << std::endl;
-            std::cerr << "now: " << tjq::tool::Date::now() << std::endl;
-            std::cerr << "时间段大小 _gap_size: " << _gap_size << std::endl;
-            std::cerr << "now / _gap_size: " << tjq::tool::Date::now() / _gap_size << std::endl;
-            // -------------debug---------------
             _cur_gap = new_cur; // 更新_cur_gap
             _ofs.close();
             std::string filename = createNewFile();

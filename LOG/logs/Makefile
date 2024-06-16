@@ -4,4 +4,4 @@ test:Test.cc
 
 .PHONY:clean
 clean:
-	rm -f test
+	rm -rf test logfile/

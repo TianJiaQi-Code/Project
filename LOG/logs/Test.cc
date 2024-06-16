@@ -6,6 +6,7 @@
 #include "Format.hpp"
 #include "Sink.hpp"
 #include "UserDefSink.hpp"
+#include "Logger.hpp"
 
 void testTool()
 {
@@ -95,9 +96,40 @@ void testUserDefSink()
     }
 }
 
+void testLogger()
+{
+    tjq::Formatter::ptr fmt(new tjq::Formatter());
+
+    tjq::LogSink::ptr stdout_lsp = tjq::SinkFactory::create<tjq::StdoutSink>();
+    // tjq::LogSink::ptr file_lsp = tjq::SinkFactory::create<tjq::FileSink>("./logfile/test.log");
+    // tjq::LogSink::ptr roll_lsp = tjq::SinkFactory::create<tjq::RollBySizeSink>("./logfile/roll-", 1024 * 1024);
+    // std::vector<tjq::LogSink::ptr> sinks = {stdout_lsp, file_lsp, roll_lsp};
+    // tjq::Logger::ptr logger(new tjq::SyncLogger("sync_logger", tjq::LogLevel::value::WARN, fmt, sinks));
+
+    tjq::LogSink::ptr time_lsp = tjq::SinkFactory::create<RollByTimeSink>("./logfile/roll-", TimeGap::GAP_SECOND);
+    std::vector<tjq::LogSink::ptr> sinks = {time_lsp, stdout_lsp};
+
+    tjq::Logger::ptr logger(new tjq::SyncLogger("sync_logger", tjq::LogLevel::value::WARN, fmt, sinks));
+
+    logger->debug(__FILE__, __LINE__, "%s", "debug测试");
+    logger->info(__FILE__, __LINE__, "%s", "info测试");
+    logger->warn(__FILE__, __LINE__, "%s", "warn测试");
+    logger->error(__FILE__, __LINE__, "%s", "error测试");
+    logger->fatal(__FILE__, __LINE__, "%s", "fatal测试");
+
+    size_t cursize = 0, count = 0;
+    while (cursize < 1024 * 1024)
+    {
+        std::string msg = "测试日志: %d";
+        logger->fatal(__FILE__, __LINE__, msg, count++);
+        cursize += msg.size();
+    }
+}
+
 int main()
 {
-    testUserDefSink();
+    testLogger();
+    // testUserDefSink();
     // testSink();
     // testThread();
     // testFormat();

@@ -185,13 +185,34 @@ namespace tjq
     class LoggerBuilder
     {
     public:
-        void buildLoggerType(LoggerType type);
-        void buildLoggerName(const std::string &name);
-        void buildLoggerLevel(LogLevel::value level);
-        void buildFormatter(const std::string &pattern);
+        LoggerBuilder()
+            : _logger_type(LoggerType::LOGGER_SYNC),
+              _limit_level(LogLevel::value::DEBUG)
+        {
+        }
+        void buildLoggerType(LoggerType type)
+        {
+            _logger_type = type;
+        }
+        void buildLoggerName(const std::string &name)
+        {
+            _logger_name = name;
+        }
+        void buildLoggerLevel(LogLevel::value level)
+        {
+            _limit_level = level;
+        }
+        void buildFormatter(const std::string &pattern)
+        {
+            _formatter = std::make_shared<Formatter>(pattern);
+        }
         template <typename SinkType, typename... Args>
-        void buildSink(Args &&...args);
-        virtual void build() = 0;
+        void buildSink(Args &&...args)
+        {
+            LogSink::ptr psink = SinkFactory::create<SinkType>(std::forward<Args>(args)...);
+            _sinks.push_back(psink);
+        }
+        virtual Logger::ptr build() = 0;
 
     protected:
         LoggerType _logger_type;
@@ -204,7 +225,22 @@ namespace tjq
     class LocalLoggerBuilder : public LoggerBuilder
     {
     public:
-        void build() override;
+        Logger::ptr build() override
+        {
+            assert(_logger_name.empty() == false); // 必须有日志器名称
+            if (_formatter.get() == nullptr)
+            {
+                _formatter = std::make_shared<Formatter>();
+            }
+            if (_sinks.empty())
+            {
+                buildSink<StdoutSink>();
+            }
+            if (_logger_type == LoggerType::LOGGER_ASYNC)
+            {
+            }
+            return std::make_shared<SyncLogger>(_logger_name, _limit_level, _formatter, _sinks);
+        }
     };
 }
 

@@ -126,9 +126,36 @@ void testLogger()
     }
 }
 
+void testLoggerBuilder()
+{
+    std::unique_ptr<tjq::LoggerBuilder> builder(new tjq::LocalLoggerBuilder());
+    builder->buildLoggerName("sync_logger");
+    builder->buildLoggerLevel(tjq::LogLevel::value::WARN);
+    builder->buildFormatter("%m%n");
+    builder->buildLoggerType(tjq::LoggerType::LOGGER_SYNC);
+    builder->buildSink<tjq::StdoutSink>();
+    builder->buildSink<tjq::FileSink>("./logfile/test.log");
+    tjq::Logger::ptr logger = builder->build();
+
+    logger->debug(__FILE__, __LINE__, "%s", "debug测试");
+    logger->info(__FILE__, __LINE__, "%s", "info测试");
+    logger->warn(__FILE__, __LINE__, "%s", "warn测试");
+    logger->error(__FILE__, __LINE__, "%s", "error测试");
+    logger->fatal(__FILE__, __LINE__, "%s", "fatal测试");
+
+    size_t cursize = 0, count = 0;
+    while (cursize < 1024 * 1024)
+    {
+        std::string msg = "测试日志: %d";
+        logger->fatal(__FILE__, __LINE__, msg, count++);
+        cursize += msg.size();
+    }
+}
+
 int main()
 {
-    testLogger();
+    testLoggerBuilder();
+    // testLogger();
     // testUserDefSink();
     // testSink();
     // testThread();

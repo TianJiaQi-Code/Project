@@ -7,6 +7,7 @@
 #include "Sink.hpp"
 #include "UserDefSink.hpp"
 #include "Logger.hpp"
+#include "Buffer.hpp"
 
 void testTool()
 {
@@ -144,7 +145,7 @@ void testLoggerBuilder()
     logger->fatal(__FILE__, __LINE__, "%s", "fatal测试");
 
     size_t cursize = 0, count = 0;
-    while (cursize < 1024 * 1024)
+    while (cursize < 10 * 1024 * 1024)
     {
         std::string msg = "测试日志: %d";
         logger->fatal(__FILE__, __LINE__, msg, count++);
@@ -152,9 +153,49 @@ void testLoggerBuilder()
     }
 }
 
+void testBuffer()
+{
+    // 读取文件数据, 一点一点写入缓冲区, 最终将缓冲区数据写入文件, 判断生成的新文件与源文件是否一致
+    std::ifstream ifs("./logfile/test.log", std::ios::binary);
+    if (ifs.is_open() == false)
+    {
+        std::cerr << "open faild!" << std::endl;
+        return;
+    }
+    ifs.seekg(0, std::ios::end); // 读写位置跳转到文件末尾
+    size_t fsize = ifs.tellg();  // 获取当前读写位置相对于起始位置的偏移量
+    ifs.seekg(0, std::ios::beg); // 重新跳转到起始位置
+
+    std::string body;
+    body.resize(fsize);
+    ifs.read(&body[0], fsize);
+    if (ifs.good() == false)
+    {
+        std::cerr << "read error" << std::endl;
+        return;
+    }
+    ifs.close();
+
+    tjq::Buffer buffer;
+    for (int i = 0; i < body.size(); i++)
+    {
+        buffer.push(&body[i], 1);
+    }
+    std::ofstream ofs("./logfile/tmp.log", std::ios::binary);
+    // ofs.write(buffer.begin(), buffer.readAbleSize());
+    size_t rsize = buffer.readAbleSize();
+    for (int i = 0; i < rsize; i++)
+    {
+        ofs.write(buffer.begin(), 1);
+        buffer.moveReader(1);
+    }
+    ofs.close();
+}
+
 int main()
 {
-    testLoggerBuilder();
+    testBuffer();
+    // testLoggerBuilder();
     // testLogger();
     // testUserDefSink();
     // testSink();

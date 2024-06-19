@@ -26,15 +26,8 @@ namespace tjq
         // 向缓冲区写入数据
         void push(const char *data, size_t len)
         {
-            // 缓冲区剩余空间不够的情况
-            // ---------------- mode1 ----------------
-            // 1. 固定大小, 直接返回
-            // if (len > writeAbleSize()) // bug?
-            //     return;
-            // ---------------- mode2 ----------------
-            // 2. 动态空间, 用于极限性能测试 - 扩容
+            // 考虑空间不够则扩容
             ensureEnoughSize(len);
-            // ----------------- end -----------------
             // 将数据拷贝进缓冲区
             std::copy(data, data + len, &_buffer[_writer_idx]);
             // 将当前写入位置向后偏移

@@ -9,9 +9,11 @@
 #include <mutex>
 #include <atomic>
 #include <cstdarg>
+#include <unordered_map>
 #include "Level.hpp"
 #include "Format.hpp"
 #include "Sink.hpp"
+#include "Looper.hpp"
 
 namespace tjq
 {
@@ -25,6 +27,11 @@ namespace tjq
               _formatter(formatter),
               _sinks(sinks.begin(), sinks.end())
         {
+        }
+
+        const std::string &name()
+        {
+            return _logger_name;
         }
 
         // 完成构造日志消息对象过程并进行格式化, 得到格式化后的日志消息字符串, 然后进行落地输出
@@ -150,6 +157,7 @@ namespace tjq
         std::vector<LogSink::ptr> _sinks;
     };
 
+    /*同步日志器*/
     class SyncLogger : public Logger
     {
     public:
@@ -172,6 +180,40 @@ namespace tjq
         }
     };
 
+    /*异步日志器*/
+    class AsyncLogger : public Logger
+    {
+    public:
+        AsyncLogger(const std::string &logger_name, LogLevel::value level, Formatter::ptr &formatter, std::vector<LogSink::ptr> &sinks,
+                    AsyncType looper_type)
+            : Logger(logger_name, level, formatter, sinks),
+              _looper(std::make_shared<AsyncLooper>(std::bind(&AsyncLogger::realLog, this, std::placeholders::_1), looper_type))
+        {
+        }
+
+        // 将数据写入缓冲区
+        void log(const char *data, size_t len)
+        {
+            _looper->push(data, len);
+        }
+
+        // 设计一个实际落地函数(将缓冲区中的数据落地)
+        void realLog(Buffer &buf)
+        {
+            if (_sinks.empty())
+            {
+                return;
+            }
+            for (auto &sink : _sinks)
+            {
+                sink->log(buf.begin(), buf.readAbleSize());
+            }
+        }
+
+    private:
+        AsyncLooper::ptr _looper;
+    };
+
     /*  使用建造者模式来建造日志器, 而不要让用户直接去构造日志器, 简化用户的使用复杂度
         1. 抽象一个日志器建造者类 (完成日志器对象所需零部件的构建 & 日志器的构建)
             1) 设置日志器类型
@@ -186,9 +228,14 @@ namespace tjq
     {
     public:
         LoggerBuilder()
-            : _logger_type(LoggerType::LOGGER_SYNC),
+            : _looper_type(AsyncType::ASYNC_SAFE),
+              _logger_type(LoggerType::LOGGER_SYNC),
               _limit_level(LogLevel::value::DEBUG)
         {
+        }
+        void buildEnableUnSafeAsync()
+        {
+            _looper_type = AsyncType::ASYNC_UNSAFE;
         }
         void buildLoggerType(LoggerType type)
         {
@@ -215,13 +262,14 @@ namespace tjq
         virtual Logger::ptr build() = 0;
 
     protected:
+        AsyncType _looper_type;
         LoggerType _logger_type;
         std::string _logger_name;
         std::atomic<LogLevel::value> _limit_level;
         Formatter::ptr _formatter;
         std::vector<LogSink::ptr> _sinks;
     };
-    //  2. 派生出具体的建造者类 - 局部日志器建造者 &全局日志器建造者(后面添加了全局单例管理器之后, 将日志器添加全局管理)
+    //  2. 派生出具体的建造者类 - 局部日志器建造者 & 全局日志器建造者(后面添加了全局单例管理器之后, 将日志器添加全局管理)
     class LocalLoggerBuilder : public LoggerBuilder
     {
     public:
@@ -238,8 +286,102 @@ namespace tjq
             }
             if (_logger_type == LoggerType::LOGGER_ASYNC)
             {
+                return std::make_shared<AsyncLogger>(_logger_name, _limit_level, _formatter, _sinks, _looper_type);
             }
             return std::make_shared<SyncLogger>(_logger_name, _limit_level, _formatter, _sinks);
+        }
+    };
+
+    /*全局日志管理器*/
+    class LoggerManager
+    {
+    public:
+        static LoggerManager &getInstance()
+        {
+            // 在C++11之后, 针对静态局部变量, 编译器在编译的层面实现了线程安全
+            // 当静态局部变量在没有构造完成之前, 其他的线程进入就会阻塞
+            static LoggerManager eton;
+            return eton;
+        }
+
+        void addLogger(Logger::ptr &logger)
+        {
+            if (hasLogger(logger->name()))
+            {
+                return;
+            }
+            std::unique_lock<std::mutex> lock(_mutex);
+            _loggers.insert(std::make_pair(logger->name(), logger));
+        }
+
+        bool hasLogger(const std::string &name)
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
+            auto it = _loggers.find(name);
+            if (it == _loggers.end())
+            {
+                return false;
+            }
+            return true;
+        }
+
+        Logger::ptr getLogger(const std::string &name)
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
+            auto it = _loggers.find(name);
+            if (it == _loggers.end())
+            {
+                return Logger::ptr();
+            }
+            return it->second;
+        }
+
+        Logger::ptr rootLogger()
+        {
+            return _root_logger;
+        }
+
+    private:
+        LoggerManager()
+        {
+            std::unique_ptr<tjq::LoggerBuilder> builder(new tjq::LocalLoggerBuilder());
+            builder->buildLoggerName("root");
+            _root_logger = builder->build();
+            _loggers.insert(std::make_pair("root", _root_logger));
+        }
+
+    private:
+        std::mutex _mutex;
+        Logger::ptr _root_logger; // 默认日志器
+        std::unordered_map<std::string, Logger::ptr> _loggers;
+    };
+
+    // 设计一个全局日志器的建造者 - 在局部的基础上增加了一个功能: 将日志器添加到单例对象中
+    class GlobalLoggerBuilder : public LoggerBuilder
+    {
+    public:
+        Logger::ptr build() override
+        {
+            assert(_logger_name.empty() == false); // 必须有日志器名称
+            if (_formatter.get() == nullptr)
+            {
+                _formatter = std::make_shared<Formatter>();
+            }
+            if (_sinks.empty())
+            {
+                buildSink<StdoutSink>();
+            }
+            Logger::ptr logger;
+            if (_logger_type == LoggerType::LOGGER_ASYNC)
+            {
+                logger = std::make_shared<AsyncLogger>(_logger_name, _limit_level, _formatter, _sinks, _looper_type);
+            }
+            else
+            {
+                logger = std::make_shared<SyncLogger>(_logger_name, _limit_level, _formatter, _sinks);
+            }
+            LoggerManager::getInstance().addLogger(logger);
+            return logger;
         }
     };
 }

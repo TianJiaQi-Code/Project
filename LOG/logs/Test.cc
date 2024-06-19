@@ -192,9 +192,70 @@ void testBuffer()
     ofs.close();
 }
 
+void testAsyncLogger()
+{
+    std::unique_ptr<tjq::LoggerBuilder> builder(new tjq::LocalLoggerBuilder());
+    builder->buildLoggerName("async_logger");
+    builder->buildLoggerLevel(tjq::LogLevel::value::WARN);
+    builder->buildFormatter("[%c]%m%n");
+    builder->buildLoggerType(tjq::LoggerType::LOGGER_ASYNC);
+    builder->buildEnableUnSafeAsync();
+    builder->buildSink<tjq::StdoutSink>();
+    builder->buildSink<tjq::FileSink>("./logfile/async.log");
+    tjq::Logger::ptr logger = builder->build();
+
+    logger->debug(__FILE__, __LINE__, "%s", "debug测试");
+    logger->info(__FILE__, __LINE__, "%s", "info测试");
+    logger->warn(__FILE__, __LINE__, "%s", "warn测试");
+    logger->error(__FILE__, __LINE__, "%s", "error测试");
+    logger->fatal(__FILE__, __LINE__, "%s", "fatal测试");
+
+    size_t count = 0;
+    while (count < 500000)
+    {
+        std::string msg = "测试日志: %d";
+        logger->fatal(__FILE__, __LINE__, msg, count++);
+    }
+}
+
+void writeLog()
+{
+    tjq::Logger::ptr logger = tjq::LoggerManager::getInstance().getLogger("async_logger");
+
+    logger->debug(__FILE__, __LINE__, "%s", "debug测试");
+    logger->info(__FILE__, __LINE__, "%s", "info测试");
+    logger->warn(__FILE__, __LINE__, "%s", "warn测试");
+    logger->error(__FILE__, __LINE__, "%s", "error测试");
+    logger->fatal(__FILE__, __LINE__, "%s", "fatal测试");
+
+    size_t count = 0;
+    while (count < 500000)
+    {
+        std::string msg = "测试日志: %d";
+        logger->fatal(__FILE__, __LINE__, msg, count++);
+    }
+}
+
+void testGlobalLoggerBuilder()
+{
+    std::unique_ptr<tjq::LoggerBuilder> builder(new tjq::GlobalLoggerBuilder());
+    builder->buildLoggerName("async_logger");
+    builder->buildLoggerLevel(tjq::LogLevel::value::WARN);
+    builder->buildFormatter("[%c]%m%n");
+    builder->buildLoggerType(tjq::LoggerType::LOGGER_ASYNC);
+    builder->buildEnableUnSafeAsync();
+    builder->buildSink<tjq::StdoutSink>();
+    builder->buildSink<tjq::FileSink>("./logfile/async.log");
+    builder->build();
+
+    writeLog();
+}
+
 int main()
 {
-    testBuffer();
+    testGlobalLoggerBuilder();
+    // testAsyncLogger();
+    // testBuffer();
     // testLoggerBuilder();
     // testLogger();
     // testUserDefSink();

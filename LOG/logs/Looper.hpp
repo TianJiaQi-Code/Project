@@ -12,12 +12,20 @@
 namespace tjq
 {
     using Functor = std::function<void(Buffer &)>;
+
+    enum class AsyncType
+    {
+        ASYNC_SAFE,  // 安全状态, 表示缓冲区满了则阻塞, 避免资源耗尽的风险
+        ASYNC_UNSAFE // 不考虑资源耗尽的问题, 无限扩容, 常用于测试
+    };
+
     class AsyncLooper
     {
     public:
         using ptr = std::shared_ptr<AsyncLooper>;
-        AsyncLooper(const Functor &cb)
-            : _stop(false),
+        AsyncLooper(const Functor &cb, AsyncType loop_type = AsyncType::ASYNC_SAFE)
+            : _looper_type(loop_type),
+              _stop(false),
               _thread(std::thread(&AsyncLooper::threadEntry, this)),
               _callBack(cb)
         {
@@ -40,8 +48,11 @@ namespace tjq
             // 2. 固定大小 - 生产缓冲区中数据满了就阻塞
             std::unique_lock<std::mutex> lock(_mutex);
             // 条件变量控制, 若缓冲区剩余空间大小大于数据长度, 则可以添加数据
-            _cond_pro.wait(lock, [&]()
-                           { return _pro_buf.writeAbleSize() >= len; });
+            if (_looper_type == AsyncType::ASYNC_SAFE)
+            {
+                _cond_pro.wait(lock, [&]()
+                               { return _pro_buf.writeAbleSize() >= len; });
+            }
             // 走到这里代表满足了条件, 可以向缓冲区添加数据
             _pro_buf.push(data, len);
             // 唤醒消费者缓冲区中的数据进行处理
@@ -52,18 +63,26 @@ namespace tjq
         // 线程入口函数 - 对消费缓冲区中的数据进行处理, 处理完毕后, 初始化缓冲区, 交换缓冲区
         void threadEntry()
         {
-            while (!_stop)
+            while (true)
             {
                 // 为互斥锁设置一个生命周期, 当缓冲区交换完毕后就解锁(并不对数据的处理过程加锁保护)
                 {
                     // 1. 判断生产缓冲区有没有数据, 有则交换, 无则阻塞
                     std::unique_lock<std::mutex> lock(_mutex);
+                    // 退出标志被设置, 且生产缓冲区已无数据, 这时候再退出, 否则有可能会造成生产缓冲区中有数据, 但是没有被完全处理
+                    if (_stop && _pro_buf.empty())
+                    {
+                        break;
+                    }
                     // 若当前是退出前被唤醒, 或者有数据被唤醒, 则返回真, 继续向下运行, 否则重新陷入休眠
                     _cond_con.wait(lock, [&]()
                                    { return _stop || !_pro_buf.empty(); });
                     _con_buf.swap(_pro_buf);
                     // 2. 唤醒生产者
-                    _cond_pro.notify_all();
+                    if (_looper_type == AsyncType::ASYNC_SAFE)
+                    {
+                        _cond_pro.notify_all();
+                    }
                 }
                 // 3. 被唤醒后, 对消费缓冲区进行数据处理
                 _callBack(_con_buf);
@@ -76,6 +95,7 @@ namespace tjq
         Functor _callBack; // 具体对缓冲区数据进行处理的回调函数, 由异步工作器使用者传入
 
     private:
+        AsyncType _looper_type;
         bool _stop;      // 工作器停止标志
         Buffer _pro_buf; // 生产缓冲区
         Buffer _con_buf; // 消费缓冲区

@@ -28,7 +28,7 @@ namespace tjq
         virtual void log(const char *data, size_t len) = 0;
     };
 
-    // 1. 落地方向: 标准输出
+    // 落地方向: 标准输出
     class StdoutSink : public LogSink
     {
     public:
@@ -39,7 +39,10 @@ namespace tjq
         }
     };
 
-    // 2. 落地方向: 指定文件
+    /*  落地方向: 指定文件
+        FileSink(const std::string &pathname);
+        pathname: 文件名
+    */
     class FileSink : public LogSink
     {
     public:
@@ -65,7 +68,11 @@ namespace tjq
         std::ofstream _ofs;
     };
 
-    // 3. 落地方向: 滚动文件(以大小进行滚动)
+    /*  落地方向: 滚动文件(以大小进行滚动)
+        RollBySizeSink(const std::string &basename, size_t max_size);
+        basename: 基础文件名
+        max_size: 单个文件最大大小
+    */
     class RollBySizeSink : public LogSink
     {
     public:

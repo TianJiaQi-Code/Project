@@ -81,7 +81,7 @@ void testUserDefSink()
     tjq::Formatter fmt;
     std::string str = fmt.format(msg);
 
-    tjq::LogSink::ptr time_lsp = tjq::SinkFactory::create<RollByTimeSink>("./logfile/roll-", TimeGap::GAP_MINUTE);
+    tjq::LogSink::ptr time_lsp = tjq::SinkFactory::create<ext::RollByTimeSink>("./logfile/roll-", ext::TimeGap::GAP_MINUTE);
     // time_t old = tjq::tool::Date::now();
     // while (tjq::tool::Date::now() < old + 5)
     // {
@@ -106,7 +106,7 @@ void testLogger()
     // std::vector<tjq::LogSink::ptr> sinks = {stdout_lsp, file_lsp, roll_lsp};
     // tjq::Logger::ptr logger(new tjq::SyncLogger("sync_logger", tjq::LogLevel::value::WARN, fmt, sinks));
 
-    tjq::LogSink::ptr time_lsp = tjq::SinkFactory::create<RollByTimeSink>("./logfile/roll-", TimeGap::GAP_SECOND);
+    tjq::LogSink::ptr time_lsp = tjq::SinkFactory::create<ext::RollByTimeSink>("./logfile/roll-", ext::TimeGap::GAP_SECOND);
     std::vector<tjq::LogSink::ptr> sinks = {time_lsp, stdout_lsp};
 
     tjq::Logger::ptr logger(new tjq::SyncLogger("sync_logger", tjq::LogLevel::value::WARN, fmt, sinks));

@@ -1,5 +1,6 @@
 /*日志系统使用示例*/
 
+#include <unistd.h>
 #include "../logs/Log.h"
 #include "../extend/TimeSink.hpp"
 
@@ -36,19 +37,27 @@ void testMySink(const std::string &name)
     builder->buildLoggerName(name);
     builder->buildLoggerType(tjq::LoggerType::LOGGER_ASYNC);
     builder->buildSink<tjq::StdoutSink>();
-
+    builder->buildSink<ext::RollByTimeSink>("./logfile/roll-async-by-time-", ext::TimeGap::GAP_MINUTE);
     builder->build();
+
+    tjq::Logger::ptr logger = tjq::LoggerManager::getInstance().getLogger(name);
+    size_t time = tjq::tool::Date::now();
+    while (tjq::tool::Date::now() < time + 120)
+    {
+        logger->fatal("%s-time:%d", "测试", tjq::tool::Date::now());
+        usleep(1000);
+    }
 }
 
 int main()
 {
-    /*---普通测试---*/
-    // std::string logger_name = "sync_logger";
-    // build(logger_name);
-    // write(logger_name);
+    /*---普通示例---*/
+    std::string logger_name = "sync_logger";
+    build(logger_name);
+    write(logger_name);
 
-    /*---扩展测试---*/
-    testMySink("time_async_logger");
+    /*---扩展示例---*/
+    // testMySink("time_async_logger");
 
     return 0;
 }

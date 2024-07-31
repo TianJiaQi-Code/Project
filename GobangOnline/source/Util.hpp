@@ -45,9 +45,8 @@ public:
         int ret = mysql_query(mysql, sql.c_str());
         if (ret != 0)
         {
-            ERROR("%s", sql);
+            ERROR("%s", sql.c_str());
             ERROR("mysql query failed: %s", mysql_error(mysql));
-            mysql_close(mysql);
             return false;
         }
         return true;

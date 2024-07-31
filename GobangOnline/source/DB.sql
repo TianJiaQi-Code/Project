@@ -1,11 +1,12 @@
 -- 数据管理模块
 -- 1. 数据库表的设计
+drop database if exists gobang;
 create database if not exists gobang;
 use gobang;
 create table if not exists user(
     id int primary key auto_increment,
-    username varchar(32) not null,
-    password varchar(32) not null,
+    username varchar(32) unique key not null,
+    password varchar(128) not null,
     score int,
     total_count int,
     win_count int

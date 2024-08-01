@@ -2,6 +2,8 @@
 #include <vector>
 #include "../logs/Log.h"
 #include "Util.hpp"
+#include "DB.hpp"
+#include "Online.hpp"
 
 #define HOST "127.0.0.1"
 #define PORT 3306
@@ -63,9 +65,82 @@ void test_file_util()
     DEBUG(body.c_str());
 }
 
+void test_db_h()
+{
+    user_table ut(HOST, USER, PASS, DBNAME, PORT);
+    Json::Value user;
+    // user["username"] = "xiaotian";
+    // user["password"] = "123456";
+    // ut.insert(user);
+
+    // bool ret = ut.login(user);
+    // if (ret == false)
+    // {
+    //     DEBUG("login failed!");
+    // }
+
+    // bool ret = ut.select_by_name("xiaotian", user);
+    // bool ret = ut.select_by_id(2, user);
+    // std::string body;
+    // json_util::serialize(user, body);
+    // DEBUG(body.c_str());
+
+    // ut.win(1);
+    // ut.lose(1);
+
+    user["username"] = "xiaoming";
+    ut.insert(user);
+}
+
+void test_online_h()
+{
+    online_manager om;
+    websocket_server::connection_ptr conn;
+    uint64_t uid = 2;
+    // om.enter_game_hall(uid, conn);
+    // if (om.is_in_game_hall(uid))
+    // {
+    //     DEBUG("in game hall");
+    // }
+    // else
+    // {
+    //     DEBUG("not in game hall");
+    // }
+    // om.exit_game_hall(uid);
+    // if (om.is_in_game_hall(uid))
+    // {
+    //     DEBUG("in game hall");
+    // }
+    // else
+    // {
+    //     DEBUG("not in game hall");
+    // }
+
+    om.enter_game_room(uid, conn);
+    if (om.is_in_game_room(uid))
+    {
+        DEBUG("in game room");
+    }
+    else
+    {
+        DEBUG("not in game room");
+    }
+    om.exit_game_room(uid);
+    if (om.is_in_game_room(uid))
+    {
+        DEBUG("in game room");
+    }
+    else
+    {
+        DEBUG("not in game room");
+    }
+}
+
 int main()
 {
-    test_file_util();
+    test_online_h();
+    // test_db_h();
+    // test_file_util();
     // test_string_util();
     // test_json_util();
     // test_mysql_util();

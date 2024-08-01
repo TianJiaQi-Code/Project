@@ -5,7 +5,11 @@
 #include <string>
 #include <mysql/mysql.h>
 #include <jsoncpp/json/json.h>
+#include <websocketpp/server.hpp>
+#include <websocketpp/config/asio_no_tls.hpp>
 #include "../logs/Log.h"
+
+typedef websocketpp::server<websocketpp::config::asio> websocket_server;
 
 class mysql_util
 {

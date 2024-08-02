@@ -68,54 +68,28 @@ public:
     // 处理下棋动作
     Json::Value handle_chess(Json::Value &req)
     {
-        Json::Value json_resp;
-        // 1. 当前请求的房间号是否与当前房间的房间号匹配
-        uint64_t room_id = req["room_id"].asUInt64();
-        if (room_id != _room_id)
-        {
-            json_resp["optype"] = "put_chess";
-            json_resp["result"] = false;
-            json_resp["reason"] = "房间号不匹配!";
-            return json_resp;
-        }
+        Json::Value json_resp = req;
         // 2. 判断房间中两个玩家是否都在线, 任意一个不在线, 就是另一方胜利
         int chess_row = req["row"].asInt();
         int chess_col = req["col"].asInt();
         uint64_t cur_uid = req["uid"].asInt64();
         if (_online_user->is_in_game_room(_white_id) == false)
         {
-            json_resp["optype"] = "put_chess";
             json_resp["result"] = true;
             json_resp["reason"] = "对方已离开房间, 你赢了";
-            json_resp["room_id"] = (Json::UInt64)_room_id;
-            json_resp["uid"] = (Json::UInt64)cur_uid;
-            json_resp["row"] = chess_row;
-            json_resp["col"] = chess_col;
             json_resp["winner"] = (Json::UInt64)_black_id;
-            uint64_t loser_id = _white_id;
-            _tb_user->win(_black_id);
-            _tb_user->lose(_white_id);
             return json_resp;
         }
         if (_online_user->is_in_game_room(_black_id) == false)
         {
-            json_resp["optype"] = "put_chess";
             json_resp["result"] = true;
             json_resp["reason"] = "对方已离开房间, 你赢了";
-            json_resp["room_id"] = (Json::UInt64)_room_id;
-            json_resp["uid"] = (Json::UInt64)cur_uid;
-            json_resp["row"] = chess_row;
-            json_resp["col"] = chess_col;
             json_resp["winner"] = (Json::UInt64)_white_id;
-            uint64_t loser_id = _black_id;
-            _tb_user->win(_white_id);
-            _tb_user->lose(_black_id);
             return json_resp;
         }
         // 3. 判断走棋位置, 判断当前走棋是否合理(位置是否已经被占用)
         if (_board[chess_row][chess_col] != 0)
         {
-            json_resp["optype"] = "put_chess";
             json_resp["result"] = false;
             json_resp["reason"] = "当前位置已经有了其他棋子";
             return json_resp;
@@ -126,30 +100,113 @@ public:
         uint64_t winner_id = check_win(chess_row, chess_col, cur_color);
         if (winner_id != 0)
         {
-            // 更新数据库用户信息
-            uint64_t loser_id = winner_id == _white_id ? _black_id : _white_id;
-            _tb_user->win(winner_id);
-            _tb_user->lose(loser_id);
+            json_resp["reason"] = "五星连珠, 你赢了!";
         }
         json_resp["optype"] = "put_chess";
         json_resp["result"] = true;
-        json_resp["reason"] = "五星连珠, 你赢了!";
-        json_resp["room_id"] = (Json::UInt64)_room_id;
-        json_resp["uid"] = (Json::UInt64)cur_uid;
-        json_resp["row"] = chess_row;
-        json_resp["col"] = chess_col;
         json_resp["winner"] = (Json::UInt64)winner_id;
         return json_resp;
     }
 
     // 处理聊天动作
-    Json::Value handle_chat(Json::Value &req);
+    Json::Value handle_chat(Json::Value &req)
+    {
+        Json::Value json_resp = req;
+        // 2. 检测消息中是否包含敏感词
+        std::string msg = req["message"].asCString();
+        size_t pos = msg.find("垃圾");
+        if (pos != std::string::npos)
+        {
+            json_resp["result"] = false;
+            json_resp["reason"] = "消息中包含敏感词";
+            return json_resp;
+        }
+        // 3. 广播消息 - 返回消息
+        json_resp["result"] = true;
+        return json_resp;
+    }
+
     // 处理玩家退出房间动作
-    void handle_exit(uint64_t uid);
+    void handle_exit(uint64_t uid)
+    {
+        // 如果是下棋中退出, 则对方胜利, 否则正常退出
+        Json::Value json_resp;
+        if (_statu == GAME_START)
+        {
+            json_resp["optype"] = "put_chess";
+            json_resp["result"] = true;
+            json_resp["reason"] = "对方已离开房间, 你赢了";
+            json_resp["room_id"] = (Json::UInt64)_room_id;
+            json_resp["uid"] = (Json::UInt64)uid;
+            json_resp["row"] = -1;
+            json_resp["col"] = -1;
+            json_resp["winner"] = (Json::UInt64)(uid == _white_id ? _black_id : _white_id);
+            broadcast(json_resp);
+        }
+        // 房间中玩家数量--
+        _player_count--;
+        return;
+    }
+
     // 总的请求处理函数, 在函数内部, 区分请求类型, 根据不同的请求调用不同的处理函数, 得到响应进行广播
-    void handle_request(Json::Value &req);
+    void handle_request(Json::Value &req)
+    {
+        // 1. 校验房间号是否匹配
+        Json::Value json_resp;
+        uint64_t room_id = req["room_id"].asUInt64();
+        if (room_id != _room_id)
+        {
+            json_resp["optype"] = req["optype"].asString();
+            json_resp["result"] = false;
+            json_resp["reason"] = "房间号不匹配";
+            return broadcast(json_resp);
+        }
+        // 2. 根据不同的请求调用不同的处理函数
+        if (req["optype"].asString() == "put_chess")
+        {
+            json_resp = handle_chess(req);
+            if (json_resp["winner"].asInt64() != 0)
+            {
+                uint64_t winner_id = json_resp["winner"].asInt64();
+                uint64_t loser_id = winner_id == _white_id ? _black_id : _white_id;
+                _tb_user->win(winner_id);
+                _tb_user->lose(loser_id);
+                _statu = GAME_OVER;
+            }
+        }
+        else if (req["optype"].asString() == "chat")
+        {
+            json_resp = handle_chat(req);
+        }
+        else
+        {
+            json_resp["optype"] = req["optype"].asString();
+            json_resp["result"] = false;
+            json_resp["reason"] = "未知请求类型";
+        }
+        return broadcast(json_resp);
+    }
+
     // 将指定的信息广播给房间中所有玩家
-    void broadcast(Json::Value &req);
+    void broadcast(Json::Value &rsp)
+    {
+        // 1. 对要响应的信息进行序列化, 将Json::Value中的数据序列化成为json格式字符串
+        std::string body;
+        json_util::serialize(rsp, body);
+        // 2. 获取房间中所有用户的通信连接
+        // 3. 发送响应信息
+        websocket_server::connection_ptr wconn = _online_user->get_conn_from_room(_white_id);
+        if (wconn.get() != nullptr)
+        {
+            wconn->send(body);
+        }
+        websocket_server::connection_ptr bconn = _online_user->get_conn_from_room(_black_id);
+        if (bconn.get() != nullptr)
+        {
+            bconn->send(body);
+        }
+        return;
+    }
 
 private:
     bool five(int row, int col, int row_off, int col_off, int color)
@@ -205,6 +262,12 @@ private:
     user_table *_tb_user;
     online_manager *_online_user;
     std::vector<std::vector<int>> _board;
+};
+
+using room_ptr = std::shared_ptr<room>;
+
+class room_manager
+{
 };
 
 #endif

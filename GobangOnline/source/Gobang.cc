@@ -4,6 +4,8 @@
 #include "Util.hpp"
 #include "DB.hpp"
 #include "Online.hpp"
+#include "Room.hpp"
+#include "Session.hpp"
 
 #define HOST "127.0.0.1"
 #define PORT 3306
@@ -136,9 +138,19 @@ void test_online_h()
     }
 }
 
+void test_room_h()
+{
+    user_table ut(HOST, USER, PASS, DBNAME, PORT);
+    online_manager om;
+    // room r(10, &ut, &om);
+    room_manager rm(&ut, &om);
+    room_ptr rp = rm.create_room(10, 20);
+}
+
 int main()
 {
-    test_online_h();
+    test_room_h();
+    // test_online_h();
     // test_db_h();
     // test_file_util();
     // test_string_util();

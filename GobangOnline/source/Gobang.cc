@@ -6,6 +6,7 @@
 #include "Online.hpp"
 #include "Room.hpp"
 #include "Session.hpp"
+#include "Matcher.hpp"
 
 #define HOST "127.0.0.1"
 #define PORT 3306
@@ -147,9 +148,18 @@ void test_room_h()
     room_ptr rp = rm.create_room(10, 20);
 }
 
+void test_matcher_h()
+{
+    user_table ut(HOST, USER, PASS, DBNAME, PORT);
+    online_manager om;
+    room_manager rm(&ut, &om);
+    matcher mc(&rm, &ut, &om);
+}
+
 int main()
 {
-    test_room_h();
+    test_matcher_h();
+    // test_room_h();
     // test_online_h();
     // test_db_h();
     // test_file_util();

@@ -132,7 +132,7 @@ public:
         return true;
     }
 
-    // 通过id获取用户信息
+    // 通过ID获取用户信息
     bool select_by_id(uint64_t id, Json::Value &user)
     {
         char sql[4096] = {0};

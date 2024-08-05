@@ -1,12 +1,4 @@
-#include <iostream>
-#include <vector>
-#include "../logs/Log.h"
-#include "Util.hpp"
-#include "DB.hpp"
-#include "Online.hpp"
-#include "Room.hpp"
-#include "Session.hpp"
-#include "Matcher.hpp"
+#include "Server.hpp"
 
 #define HOST "127.0.0.1"
 #define PORT 3306
@@ -156,9 +148,16 @@ void test_matcher_h()
     matcher mc(&rm, &ut, &om);
 }
 
+void test_server_h()
+{
+    gobang_server server(HOST, USER, PASS, DBNAME, PORT);
+    server.start(8085);
+}
+
 int main()
 {
-    test_matcher_h();
+    test_server_h();
+    // test_matcher_h();
     // test_room_h();
     // test_online_h();
     // test_db_h();

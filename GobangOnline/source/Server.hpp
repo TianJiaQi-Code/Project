@@ -82,7 +82,7 @@ private:
         conn->set_status(websocketpp::http::status_code::ok);
     }
 
-    void http_resp(bool result, websocketpp::http::status_code::value code, const std::string &reason)
+    void http_resp(websocket_server::connection_ptr &conn, bool result, websocketpp::http::status_code::value code, const std::string &reason)
     {
         Json::Value resp_json;
         resp_json["result"] = result;
@@ -103,34 +103,138 @@ private:
         std::string req_body = conn->get_request_body();
         // 2. 对正文进行json反序列化, 得到用户名和密码
         Json::Value login_info;
-        Json::Value resp_json;
         bool ret = json_util::unserialize(req_body, login_info);
         if (ret == false)
         {
-            return http_resp(false, websocketpp::http::status_code::bad_request, "请求的正文格式错误");
+            DEBUG("反序列化注册信息失败");
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "请求的正文格式错误");
         }
         // 3. 进行数据库的用户新增操作
         if (login_info["username"].isNull() || login_info["password"].isNull())
         {
-            return http_resp(false, websocketpp::http::status_code::bad_request, "请输入用户名/密码");
+            DEBUG("用户名/密码不完整");
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "请输入用户名/密码");
         }
         ret = _ut.insert(login_info);
         if (ret == false)
         {
-            return http_resp(false, websocketpp::http::status_code::bad_request, "用户名已经被占用");
+            DEBUG("向数据库插入数据失败");
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "用户名已经被占用");
         }
         // 4. 如果成功了, 则返回200
-        return http_resp(true, websocketpp::http::status_code::ok, "用户注册成功");
+        return http_resp(conn, true, websocketpp::http::status_code::ok, "用户注册成功");
     }
 
     // 用户登录功能请求的处理
     void login(websocket_server::connection_ptr &conn)
     {
+        // 1. 获取请求正文, 并进行json反序列化, 得到用户名和密码
+        websocketpp::http::parser::request req = conn->get_request();
+        std::string req_body = conn->get_request_body();
+        Json::Value login_info;
+        bool ret = json_util::unserialize(req_body, login_info);
+        if (ret == false)
+        {
+            DEBUG("反序列化登录信息失败");
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "请求的正文格式错误");
+        }
+        // 2. 校验正文完整性, 进行数据库的用户信息验证
+        if (login_info["username"].isNull() || login_info["password"].isNull())
+        {
+            DEBUG("用户名/密码不完整");
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "请输入用户名/密码");
+        }
+        ret = _ut.login(login_info);
+        // 2.1 如果验证失败, 则返回400
+        if (ret == false)
+        {
+            DEBUG("用户名/密码错误");
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "用户名/密码错误");
+        }
+        // 3. 如果验证成功, 给客户端创建session
+        uint64_t uid = login_info["id"].asUInt64();
+        session_ptr ssp = _sm.create_session(uid, LOGIN);
+        if (ssp.get() == nullptr)
+        {
+            DEBUG("创建会话失败");
+            return http_resp(conn, false, websocketpp::http::status_code::internal_server_error, "创建会话失败");
+        }
+        _sm.set_session_expire_time(ssp->ssid(), SESSION_TIMEOUT);
+        // 4. 设置响应头部, Set-Cookie, 将session通过cookie返回
+        std::string cookie_ssid = "SSID=" + std::to_string(ssp->ssid());
+        conn->append_header("Set-Cookie", cookie_ssid);
+        return http_resp(conn, true, websocketpp::http::status_code::ok, "登录成功");
     }
+
+    bool get_cookie_val(const std::string &cookie_str, const std::string &key, std::string &val)
+    {
+        // Cookie: ssid=xxx, path=/
+        // 1. 以 "; " 作为间隔, 对字符串进行分割, 得到各个单个的cookie信息
+        std::string sep = "; ";
+        std::vector<std::string> cookie_arr;
+        string_util::split(cookie_str, sep, cookie_arr);
+        for (auto str : cookie_arr)
+        {
+            // 2. 对单个cookie字符串, 以 "=" 为间隔符进行分割, 得到key和val
+            std::vector<std::string> tmp_arr;
+            string_util::split(str, "=", tmp_arr);
+            if (tmp_arr.size() != 2)
+            {
+                continue;
+            }
+            if (tmp_arr[0] == key)
+            {
+                val = tmp_arr[1];
+                return true;
+            }
+        }
+        return false;
+    }
+
     // 用户信息获取功能请求的处理
     void info(websocket_server::connection_ptr &conn)
     {
+        Json::Value err_resp;
+        // 1. 获取请求信息中的cookie, 从cookie中获取ssid
+        std::string cookie_str = conn->get_request_header("Cookie");
+        if (cookie_str.empty())
+        {
+            // 如果没有cookie, 返回错误: 没有cookie信息, 让客户端重新登录
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "找不到cookie信息, 请重新登录");
+        }
+        // 1.5 从cookie中取出ssid
+        std::string ssid_str;
+        bool ret = get_cookie_val(cookie_str, "SSID", ssid_str);
+        if (ret == false)
+        {
+            // cookie中没有ssid, 返回错误: 没有ssid信息, 让客户端重新登录
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "找不到ssid信息, 请重新登录");
+        }
+        // 2. 在session管理中查找对应的会话信息
+        session_ptr ssp = _sm.get_session_by_ssid(std::stol(ssid_str));
+        if (ssp.get() == nullptr)
+        {
+            // 没有找到session, 则认为登录已经过期, 需要重新登录
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "登录过期, 请重新登录");
+        }
+        // 3. 从数据库中取出用户信息, 进行序列化发送给客户端
+        uint64_t uid = ssp->get_user();
+        Json::Value user_info;
+        ret = _ut.select_by_id(uid, user_info);
+        if (ret == false)
+        {
+            // 获取用户信息失败, 返回错误: 找不到用户信息
+            return http_resp(conn, false, websocketpp::http::status_code::bad_request, "找不到用户信息, 请重新登录");
+        }
+        std::string body;
+        json_util::serialize(user_info, body);
+        conn->set_body(body);
+        conn->append_header("Contect-Type", "application/json");
+        conn->set_status(websocketpp::http::status_code::ok);
+        // 4. 刷新session的过期时间
+        _sm.set_session_expire_time(ssp->ssid(), SESSION_TIMEOUT);
     }
+
     void http_callback(websocketpp::connection_hdl hdl)
     {
         websocket_server::connection_ptr conn = _wssrv.get_con_from_hdl(hdl);

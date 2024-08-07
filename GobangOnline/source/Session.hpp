@@ -83,6 +83,7 @@ public:
         std::unique_lock<std::mutex> lock(_mutex);
         session_ptr ssp(new session(_next_ssid));
         ssp->set_statu(statu);
+        ssp->set_user(uid);
         _session.insert(std::make_pair(_next_ssid, ssp));
         _next_ssid++;
         return ssp;

@@ -27,11 +27,11 @@ public:
           _online_user(online_user),
           _board(BOARD_ROW, std::vector<int>(BOARD_COL, 0))
     {
-        DEBUG("%lu: 房间创建成功!", _room_id);
+        DEBUG("房间ID %lu: 房间创建成功!", _room_id);
     }
     ~room()
     {
-        DEBUG("%lu: 房间销毁成功!", _room_id);
+        DEBUG("房间ID %lu: 房间销毁成功!", _room_id);
     }
 
     uint64_t id()
@@ -133,6 +133,7 @@ public:
         Json::Value json_resp;
         if (_statu == GAME_START)
         {
+            uint64_t winner_id = (Json::UInt64)(uid == _white_id ? _black_id : _white_id);
             json_resp["optype"] = "put_chess";
             json_resp["result"] = true;
             json_resp["reason"] = "对方已离开房间, 你赢了";
@@ -140,7 +141,11 @@ public:
             json_resp["uid"] = (Json::UInt64)uid;
             json_resp["row"] = -1;
             json_resp["col"] = -1;
-            json_resp["winner"] = (Json::UInt64)(uid == _white_id ? _black_id : _white_id);
+            json_resp["winner"] = (Json::UInt64)winner_id;
+            uint64_t loser_id = winner_id == _white_id ? _black_id : _white_id;
+            _tb_user->win(winner_id);
+            _tb_user->lose(loser_id);
+            _statu = GAME_OVER;
             broadcast(json_resp);
         }
         // 房间中玩家数量--
@@ -184,6 +189,9 @@ public:
             json_resp["result"] = false;
             json_resp["reason"] = "未知请求类型";
         }
+        std::string body;
+        json_util::serialize(json_resp, body);
+        DEBUG("房间 - 广播动作: %s", body.c_str());
         return broadcast(json_resp);
     }
 
@@ -200,10 +208,18 @@ public:
         {
             wconn->send(body);
         }
+        else
+        {
+            DEBUG("房间 - 白棋玩家连接获取失败");
+        }
         websocket_server::connection_ptr bconn = _online_user->get_conn_from_room(_black_id);
         if (bconn.get() != nullptr)
         {
             bconn->send(body);
+        }
+        else
+        {
+            DEBUG("房间 - 黑棋玩家连接获取失败");
         }
         return;
     }
@@ -329,13 +345,15 @@ public:
         auto uit = _users.find(uid);
         if (uit == _users.end())
         {
+            ERROR("找不到房间ID, uid: %ld", uid);
             return room_ptr();
         }
         uint64_t rid = uit->second;
         // 2. 通过房间ID获取房间信息
-        auto rit = _rooms.find(uid);
+        auto rit = _rooms.find(rid);
         if (rit == _rooms.end())
         {
+            ERROR("找不到游戏房间, rid: %ld", rid);
             return room_ptr();
         }
         return rit->second;

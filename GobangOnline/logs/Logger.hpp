@@ -346,6 +346,9 @@ namespace tjq
         {
             std::unique_ptr<tjq::LoggerBuilder> builder(new tjq::LocalLoggerBuilder());
             builder->buildLoggerName("root");
+            builder->buildLoggerType(tjq::LoggerType::LOGGER_ASYNC);
+            builder->buildSink<tjq::StdoutSink>();
+            builder->buildSink<ext::RollByTimeSink>("../source/logfile/roll-by-day-", ext::TimeGap::GAP_DAY);
             _root_logger = builder->build();
             _loggers.insert(std::make_pair("root", _root_logger));
         }

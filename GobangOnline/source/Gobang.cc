@@ -154,9 +154,17 @@ void test_server_h()
     server.start(8085);
 }
 
+void game_run()
+{
+    // 启动服务器
+    gobang_server server(HOST, USER, PASS, DBNAME, PORT);
+    server.start(8085);
+}
+
 int main()
 {
-    test_server_h();
+    game_run();
+    // test_server_h();
     // test_matcher_h();
     // test_room_h();
     // test_online_h();

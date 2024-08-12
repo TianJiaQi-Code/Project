@@ -43,24 +43,14 @@
         var is_me;
 
         function initGame() {
-            initBoard();
-            // 背景图片
-            let logo = new Image();
-            logo.src = "image/sky.jpeg";
-            logo.onload = function () {
-                // 绘制图片
-                context.drawImage(logo, 0, 0, 450, 450);
-                // 绘制棋盘
-                drawChessBoard();
-            }
-            logo.onerror = function () {
-                console.error("背景图片加载失败，使用默认背景。");
-                context.fillStyle = "#FFFFFF"; // 默认背景颜色
-                context.fillRect(0, 0, 450, 450);
-                drawChessBoard();
-            };
-
+            initBoard(); // 初始化棋盘数据
+            // 设置纯色背景
+            context.fillStyle = "#F2D184"; // 你可以选择任何合适的颜色
+            context.fillRect(0, 0, 450, 450); // 填充整个 canvas 区域
+            // 绘制棋盘
+            drawChessBoard();
         }
+
 
         function initBoard() {
             for (let i = 0; i < BOARD_ROW_AND_COL; i++) {
@@ -72,7 +62,7 @@
         }
         // 绘制棋盘网格线
         function drawChessBoard() {
-            context.strokeStyle = "#BFBFBF";
+            context.strokeStyle = "#D2AE62";
             for (let i = 0; i < BOARD_ROW_AND_COL; i++) {
                 //横向的线条
                 context.moveTo(15 + i * 30, 15);
@@ -156,77 +146,6 @@
         ws_hdl.onerror = function () {
             console.log("房间长连接出错");
         }
-
-        // ws_hdl.onmessage = function (evt) {
-        //     // 1. 在收到room_ready之后进行房间的初始化
-        //     // 1.1 将房间信息保存起来
-        //     var info = JSON.parse(evt.data);
-        //     console.log(JSON.stringify(info));
-        //     if (info.optype == "room_ready") {
-        //         room_info = info;
-        //         is_me = room_info.uid == room_info.white_id ? true : false;
-        //         set_screen(is_me);
-        //         initGame();
-        //     }
-        //     else if (info.optype == "put_chess") {
-        //         console.log("put_chess: " + evt.data);
-        //         // 2. 走棋操作
-        //         if (info.result == false) {
-        //             alert(info.reason);
-        //             return;
-        //         }
-        //         // 当前走棋的用户id, 与我自己的用户id相同, 就是我自己走棋
-        //         is_me = info.uid == room_info.uid ? false : true;
-        //         // 绘制棋子的颜色, 应该根据当前下棋角色的颜色确定
-        //         var isWhite = info.uid == room_info.white_id ? true : false;
-        //         if (info.row != -1 && info.col != -1) {
-        //             // 2.1 绘制棋子
-        //             oneStep(info.col, info.row, isWhite);
-        //             // 2.2 设置棋盘信息
-        //             chessBoard[info.row][info.col] = 1;
-        //         }
-        //         // 2.3 是否有胜利者
-        //         if (info.winner == 0) {
-        //             return;
-        //         }
-        //         var screen_div = document.getElementById("screen");
-        //         if (room_info.uid == info.winner) {
-        //             screen_div.innerHTML = info.reason;
-        //         }
-        //         else {
-        //             screen_div.innerHTML = "你输了";
-        //         }
-
-        //         var chess_area_div = document.getElementById("chess_area");
-        //         var button_div = document.createElement("div");
-        //         button_div.innerHTML = "返回大厅";
-        //         button_div.onclick = function () {
-        //             ws_hdl.close();
-        //             location.replace("/game_hall.html");
-        //         }
-        //         chess_area_div.appendChild(button_div);
-        //     }
-        //     else if (info.optype == "chat") {
-        //         // 收到一条消息, 判断result, 如果未true则渲染一条消息到显示框中
-        //         if (info.result == false) {
-        //             alert(info.reason);
-        //             return;
-        //         }
-        //         var msg_div = document.createElement("p");
-        //         msg_div.innerHTML = info.message;
-        //         if (info.uid == room_info.uid) {
-        //             msg_div.setAttribute("id", "self_msg");
-        //         }
-        //         else {
-        //             msg_div.setAttribute("id", "peer_msg");
-        //         }
-        //         var br_div = document.createElement("br");
-        //         var msg_show_div = document.getElementById("chat_show");
-        //         msg_show_div.appendChild(msg_div);
-        //         msg_show_div.appendChild(br_div);
-        //         document.getElementById("chat_input").value = "";
-        //     }
-        // }
 
         ws_hdl.onmessage = function (evt) {
             var info = JSON.parse(evt.data);

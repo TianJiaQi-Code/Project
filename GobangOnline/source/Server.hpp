@@ -1,8 +1,8 @@
 #ifndef __G_SERVER_H__
 #define __G_SERVER_H__
 
-#include "Room.hpp"
 #include "Util.hpp"
+#include "Room.hpp"
 #include "DB.hpp"
 #include "Online.hpp"
 #include "Session.hpp"
